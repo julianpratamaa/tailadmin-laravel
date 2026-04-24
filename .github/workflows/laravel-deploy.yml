@@ -1,0 +1,48 @@
+name: Laravel Tailadmin Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: pratama2009-tailadmin-laravel:beta
+
+jobs:
+
+  run-mysql:
+    runs-on: self-hosted
+    steps:
+      - name: Remove old container
+        continue-on-error: true
+        run: docker rm -f $(docker ps -aq)
+
+      - name: Run mysql
+        run: |
+          docker run -d \
+          --name mysql \
+          -e MYSQL_ROOT_PASSWORD=password \
+          -e MYSQL_DATABASE=laravel \
+          -p 3306:3306 \
+          mysql:5.7
+
+  build-image:
+    needs: run-mysql
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t $IMAGE_NAME .
+
+  deploy:
+    needs: build-image
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Down old
+        run: docker compose down || true
+
+      - name: Up new
+        run: docker compose up -d
