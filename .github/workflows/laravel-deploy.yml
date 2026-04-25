@@ -1,4 +1,4 @@
-name: Laravel Tailadmin Deploy
+name: Laravel Tailadmin CI/CD
 
 on:
   push:
@@ -13,11 +13,10 @@ jobs:
   run-mysql:
     runs-on: self-hosted
     steps:
-      - name: Remove old container
-        continue-on-error: true
-        run: docker rm -f $(docker ps -aq)
+      - name: Clean old containers
+        run: docker ps -aq | xargs -r docker rm -f || true
 
-      - name: Run mysql
+      - name: Run MySQL
         run: |
           docker run -d \
           --name mysql \
@@ -26,23 +25,38 @@ jobs:
           -p 3306:3306 \
           mysql:5.7
 
+      - name: Check containers
+        run: docker ps -a
+
   build-image:
     needs: run-mysql
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Build image
+      - name: Build Docker image
         run: docker build -t $IMAGE_NAME .
+
+      - name: List images
+        run: docker images
 
   deploy:
     needs: build-image
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Down old
-        run: docker compose down || true
+      - name: Stop old container (if exists)
+        run: docker rm -f tailadmin-web || true
 
-      - name: Up new
-        run: docker compose up -d
+      - name: Run new container
+        run: |
+          docker run -d \
+          --name tailadmin-web \
+          -p 8090:80 \
+          $IMAGE_NAME
+
+      - name: Show running containers
+        run: docker ps -a
